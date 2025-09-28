@@ -1,27 +1,35 @@
-/// <reference types="jsr:@supabase/functions-js/edge-runtime" />
-
-import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-
-Deno.serve(async (req) => {
-  const { name } = await req.json()
-  const data = {
-    message: `Hello ${name}!`,
-  }
-
-  return new Response(
-    JSON.stringify(data),
-    { headers: { "Content-Type": "application/json" } },
-  )
-})
-
-/* To invoke locally:
-
-  1. Run `supabase start` (see: https://supabase.com/docs/reference/cli/supabase-start)
-  2. Make an HTTP request:
-
-  curl -i --location --request POST 'http://127.0.0.1:54321/functions/v1/groq' \
-    --header 'Authorization: Bearer ' \
-    --header 'Content-Type: application/json' \
-    --data '{"name":"Functions"}'
-
-*/
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+const token = Deno.env.get("GROQ_API_KEY");
+console.log("VS CODE TEST");
+serve(async (req)=>{
+  const { prompt } = await req.json();
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "llama-3.1-8b-instant",
+      stream: true,
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful assistant."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ]
+    })
+  });
+  return new Response(response.body, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      "Transfer-Encoding": "chunked"
+    }
+  });
+});
