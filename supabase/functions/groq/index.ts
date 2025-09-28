@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 const token = Deno.env.get("GROQ_API_KEY");
-console.log("VS CODE TEST");
+
 serve(async (req)=>{
   const { prompt } = await req.json();
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
