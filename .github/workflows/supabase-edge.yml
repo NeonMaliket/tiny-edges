@@ -15,6 +15,4 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      - run: supabase functions deploy lemonsqueezy_webhook  --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
-      - run: supabase functions deploy lemonsqueezy_webhook  --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
-      - run: supabase functions deploy contact_us            --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
+      - run: supabase functions deploy --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
