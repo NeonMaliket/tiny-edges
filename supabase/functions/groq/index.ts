@@ -6,7 +6,6 @@ const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const supabase = createClient(supabaseUrl, supabaseKey);
 serve(async (req)=>{
   const { chatId, prompt, model = "llama-3.1-8b-instant" } = await req.json();
-
   {
     const { error } = await supabase.from("chat_messages").insert({
       content: prompt,
@@ -16,7 +15,16 @@ serve(async (req)=>{
     });
     if (error) console.error("User insert error:", error);
   }
-
+  const history = await supabase.from("chat_messages").select().then((resp)=>{
+    const messages = resp.data;
+    console.log('MESSAGE: ', messages);
+    return messages.map((mess)=>{
+      return {
+        role: mess.author,
+        content: mess.content
+      };
+    });
+  });
   const upstream = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -27,6 +35,7 @@ serve(async (req)=>{
       model,
       stream: true,
       messages: [
+        ...history,
         {
           role: "system",
           content: "You are a helpful assistant."
@@ -38,7 +47,6 @@ serve(async (req)=>{
       ]
     })
   });
-
   const encoder = new TextEncoder();
   let fullAnswer = "";
   const stream = new ReadableStream({
