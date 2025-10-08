@@ -1,9 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { pdfToText } from 'npm:pdf-ts';
+import { GoogleGenAI } from "npm:@google/genai";
 const supabaseUrl = Deno.env.get("SUPABASE_URL");
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const supabase = createClient(supabaseUrl, supabaseKey);
-import { pdfToText } from 'npm:pdf-ts';
 const loadMetadata = async (metadata_id)=>{
   const { data, error } = await supabase.from("document_metadata").select("bucket, file_name, document_type:type").eq("id", metadata_id).single();
   if (error || !data) throw new Error(`Metadata not found: ${error?.message}`);
@@ -36,24 +37,51 @@ const readFile = async (metadata, resource)=>{
   };
   return handlers[metadata.document_type](metadata, resource);
 };
+const geminiEmbeding = async (content)=>{
+  const ai = new GoogleGenAI({});
+  const response = await ai.models.embedContent({
+    model: 'gemini-embedding-001',
+    contents: content
+  });
+  return response.embeddings?.[0]?.values ?? [];
+};
+const storeEmbedding = async (embedding, metadata)=>{
+  const { error } = await supabase.from("vector_store").insert({
+    metadata_id: metadata.id,
+    content: metadata.filename,
+    vector_data: embedding,
+    created_at: new Date().toISOString()
+  });
+  if (error) throw new Error(`Insert error: ${error.message}`);
+};
+const checkIfExists = async (metadata_id)=>{
+  const { data, error } = await supabase.from("vector_store").select("id").eq("metadata_id", metadata_id).maybeSingle();
+  if (error) throw new Error(`Check error: ${error.message}`);
+  return !!data;
+};
 Deno.serve(async (req)=>{
   try {
     const { metadata_id } = await req.json();
     if (!metadata_id) return new Response("Missing metadata_id", {
       status: 400
     });
+    const exists = await checkIfExists(metadata_id);
+    if (exists) {
+      return new Response(JSON.stringify({
+        status: "exists"
+      }), {
+        status: 409,
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+    }
     const metadata = await loadMetadata(metadata_id);
     const storageFile = await loadDocumentFromStorage(metadata);
     const fileContent = await readFile(metadata, storageFile);
-    return new Response(fileContent, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Content-Disposition": `inline; filename="${metadata.filename}"`,
-        "Cache-Control": "no-store",
-        "Connection": "keep-alive"
-      }
-    });
+    const embeddings = await geminiEmbeding(fileContent);
+    storeEmbedding(embeddings, metadata);
+    return new Response();
   } catch (err) {
     console.error("Download error:", err);
     return new Response("Error loading file", {
