@@ -16,7 +16,7 @@ const loadMetadata = async (metadata_id)=>{
   };
 };
 const loadDocumentFromStorage = async (metadata)=>{
-  const { data, error } = await supabase.storage.from(metadata.bucket).download(metadata.id);
+  const { data, error } = await supabase.storage.from(metadata.bucket).download(`${metadata.id}`);
   if (error || !data) throw new Error(`Storage download error: ${error?.message}`);
   return data;
 };
@@ -25,34 +25,61 @@ const readTextFile = async (metadata, resource)=>{
   console.log(`Read text file: ${metadata.filename}`);
   return text;
 };
-const readPdfFile = async (metadata, resource)=>{
+const readPdfFile = async (_, resource)=>{
   const buffer = await resource.arrayBuffer();
   const result = await pdfToText(buffer);
-  return result.replaceAll(/\n/g, " ");
+  return result;
+};
+const splitContent = (text, chunkSize = 1000, overlap = 200)=>{
+  const chunks = [];
+  for(let i = 0; i < text.length; i += chunkSize - overlap){
+    const chunk = text.slice(i, i + chunkSize);
+    chunks.push(chunk.trim());
+  }
+  return chunks.filter(Boolean);
 };
 const readFile = async (metadata, resource)=>{
   const handlers = {
     txt: readTextFile,
     pdf: readPdfFile
   };
-  return handlers[metadata.document_type](metadata, resource);
+  const content = await handlers[metadata.document_type](metadata, resource);
+  return splitContent(content);
 };
-const geminiEmbeding = async (content)=>{
+const geminiEmbedding = async (contents)=>{
+  if (!Array.isArray(contents) || contents.length === 0) {
+    throw new Error("No content to embed");
+  }
   const ai = new GoogleGenAI({});
-  const response = await ai.models.embedContent({
-    model: 'gemini-embedding-001',
-    contents: content
-  });
-  return response.embeddings?.[0]?.values ?? [];
+  const embeddings = [];
+  for(let i = 0; i < contents.length; i += 100){
+    const chunk = contents.slice(i, i + 100);
+    const response = await ai.models.embedContent({
+      model: "gemini-embedding-001",
+      contents: chunk
+    });
+    if (response.embeddings?.length) {
+      embeddings.push(...response.embeddings);
+    }
+  }
+  return embeddings;
 };
-const storeEmbedding = async (embedding, metadata)=>{
-  const { error } = await supabase.from("vector_store").insert({
-    metadata_id: metadata.id,
-    content: metadata.filename,
-    vector_data: embedding,
-    created_at: new Date().toISOString()
-  });
-  if (error) throw new Error(`Insert error: ${error.message}`);
+const storeEmbeddings = async (embeddings, contents, metadata, batchSize = 100)=>{
+  if (embeddings.length !== contents.length) {
+    throw new Error("Embeddings and contents length mismatch");
+  }
+  for(let i = 0; i < embeddings.length; i += batchSize){
+    const batchEmbeddings = embeddings.slice(i, i + batchSize);
+    const batchContents = contents.slice(i, i + batchSize);
+    const rows = batchEmbeddings.map((embedding, j)=>({
+        metadata_id: metadata.id,
+        content: batchContents[j],
+        vector_data: embedding.values ?? embedding,
+        created_at: new Date().toISOString()
+      }));
+    const { error } = await supabase.from("vector_store").insert(rows);
+    if (error) throw new Error(`Insert error: ${error.message}`);
+  }
 };
 const checkIfExists = async (metadata_id)=>{
   const { data, error } = await supabase.from("vector_store").select("id").eq("metadata_id", metadata_id).maybeSingle();
@@ -79,8 +106,8 @@ Deno.serve(async (req)=>{
     const metadata = await loadMetadata(metadata_id);
     const storageFile = await loadDocumentFromStorage(metadata);
     const fileContent = await readFile(metadata, storageFile);
-    const embeddings = await geminiEmbeding(fileContent);
-    storeEmbedding(embeddings, metadata);
+    const embeddings = await geminiEmbedding(fileContent);
+    storeEmbeddings(embeddings, fileContent, metadata);
     return new Response();
   } catch (err) {
     console.error("Download error:", err);
