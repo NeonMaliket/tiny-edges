@@ -260,7 +260,7 @@ const voiceToText = async (
       }
 
       console.log("voice_to_text Edge Function response:", data);
-      return data?.transcript;
+      return data?.transcript.trim();
    } catch (err) {
       console.error("Unexpected error in voiceToText:", err);
       return;
@@ -329,33 +329,56 @@ export const handleGroqRequest = async (
       }
 
       const encoder = new TextEncoder();
+      const decoder = new TextDecoder();
       let fullAnswer = "";
 
       const stream = new ReadableStream({
          async start(controller) {
             const reader = upstream.body!.getReader();
+            let buffer = "";
+            let done = false;
 
-            while (true) {
-               const { done, value } = await reader.read();
-               if (done) break;
+            const processBuffer = () => {
+               let idx = buffer.indexOf("\n");
+               while (idx !== -1) {
+                  const line = buffer.slice(0, idx).trim();
+                  buffer = buffer.slice(idx + 1);
+                  idx = buffer.indexOf("\n");
 
-               const chunk = new TextDecoder().decode(value);
-               controller.enqueue(encoder.encode(chunk));
+                  if (!line || !line.startsWith("data:")) continue;
 
-               chunk.split("\n").forEach((line) => {
-                  if (!line.startsWith("data:")) return;
-                  const payload = line.substring(5).trim();
-                  if (payload === "[DONE]") return;
+                  const payload = line.slice(5).trim();
+                  if (!payload || payload === "[DONE]") continue;
 
                   try {
-                     const data = JSON.parse(payload);
-                     const delta: string = data?.choices?.[0]?.delta?.content ??
-                        "";
+                     const parsed = JSON.parse(payload);
+                     const delta: string =
+                        parsed?.choices?.[0]?.delta?.content ?? "";
                      if (delta) fullAnswer += delta;
-                  } catch {
-                     // ignore
+                  } catch (err) {
+                     console.error("Stream JSON parse error:", err, line);
                   }
-               });
+               }
+            };
+
+            while (!done) {
+               const { value, done: readerDone } = await reader.read();
+               if (readerDone) {
+                  done = true;
+                  break;
+               }
+
+               const chunkText = decoder.decode(value, { stream: true });
+
+               controller.enqueue(encoder.encode(chunkText));
+
+               buffer += chunkText;
+               processBuffer();
+            }
+
+            if (buffer.trim().length > 0) {
+               buffer += "\n";
+               processBuffer();
             }
 
             controller.close();
