@@ -107,8 +107,8 @@ const mapMessageContent = (
    if (messageType === "VOICE") {
       const voice = content as ChatMessageContent;
       const mapped: ChatMessageContent = {
-         src: voice.src ?? null,
          text: voice.text ?? null,
+         src: voice.src ?? null,
       };
 
       console.log("mapMessageContent mapped (VOICE):", mapped);
