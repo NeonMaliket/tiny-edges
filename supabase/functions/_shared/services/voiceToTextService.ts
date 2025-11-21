@@ -16,37 +16,42 @@ export interface VoiceToTextResult {
    transcript: string;
 }
 
-interface SignedUrlData {
-   signedUrl: string;
-}
-
 interface GroqTranscriptionResponse {
    text?: string;
 }
 
-export async function voiceToText(
-   { voicePath }: VoiceToTextInput,
-): Promise<VoiceToTextResult> {
-   console.info("voice_to_text for path:", voicePath);
-
+const downloadAudioFromStorage = async (voicePath: string): Promise<Blob> => {
    const { data, error } = await supabaseAdmin.storage
       .from(BUCKET)
-      .createSignedUrl(voicePath, 60);
+      .download(voicePath);
 
-   if (error) {
-      console.error("createSignedUrl error:", error);
-      throw new Error("Failed to create signed URL for audio");
+   if (error || !data) {
+      console.error("download error:", error);
+      throw new Error("Failed to download audio from storage");
    }
 
-   const signedUrl = (data as SignedUrlData | null)?.signedUrl;
-   if (!signedUrl) {
-      throw new Error("Signed URL is empty");
-   }
+   return data as Blob;
+};
+
+export const voiceToText = async (
+   { voicePath }: VoiceToTextInput,
+): Promise<VoiceToTextResult> => {
+   console.info("voice_to_text for path:", voicePath);
+
+   const blob = await downloadAudioFromStorage(voicePath);
+   const arrayBuffer = await blob.arrayBuffer();
+
+   const file = new File(
+      [arrayBuffer],
+      "audio.m4a",
+      { type: blob.type || "audio/m4a" },
+   );
 
    const form = new FormData();
+   form.append("file", file);
    form.append("model", "whisper-large-v3");
-   form.append("url", signedUrl);
    form.append("response_format", "json");
+   form.append("temperature", "0");
 
    const resp = await fetch(GROQ_TRANSCRIPT_URL, {
       method: "POST",
@@ -73,4 +78,4 @@ export async function voiceToText(
    console.info("voice_to_text transcript:", transcript);
 
    return { transcript };
-}
+};
