@@ -4,7 +4,7 @@ import { getEnv } from "../config/env.ts";
 const BUCKET = "storage";
 const GROQ_API_KEY = getEnv("GROQ_API_KEY");
 const GROQ_TRANSCRIPT_URL =
-   "https://api/groq.com/openai/v1/audio/transcriptions";
+   "https://api.groq.com/openai/v1/audio/transcriptions";
 
 export interface VoiceToTextInput {
    voicePath: string;
