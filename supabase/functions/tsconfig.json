@@ -1,5 +1,7 @@
 {
-  "compilerOptions": {
-    "lib": ["deno.ns"]
-  }
+   "compilerOptions": {
+      "lib": [
+         "ESNext"
+      ]
+   }
 }
