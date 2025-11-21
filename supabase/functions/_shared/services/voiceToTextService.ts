@@ -1,12 +1,10 @@
-// supabase/functions/_shared/services/voiceToTextService.ts
-
 import { supabaseAdmin } from "../config/supabaseClient.ts";
 import { getEnv } from "../config/env.ts";
 
 const BUCKET = "storage";
 const GROQ_API_KEY = getEnv("GROQ_API_KEY");
 const GROQ_TRANSCRIPT_URL =
-   "https://api.groq.com/openai/v1/audio/transcriptions";
+   "https://api/groq.com/openai/v1/audio/transcriptions";
 
 export interface VoiceToTextInput {
    voicePath: string;
@@ -20,10 +18,27 @@ interface GroqTranscriptionResponse {
    text?: string;
 }
 
+const normalizePath = (raw: string): string => {
+   let path = raw.trim();
+
+   while (path.startsWith("/")) path = path.slice(1);
+
+   if (path.startsWith(`${BUCKET}/`)) {
+      path = path.slice(BUCKET.length + 1);
+   }
+
+   return path;
+};
+
 const downloadAudioFromStorage = async (voicePath: string): Promise<Blob> => {
+   const pathInBucket = normalizePath(voicePath);
+
+   console.log("voicePath raw:", voicePath);
+   console.log("voicePath normalized:", pathInBucket);
+
    const { data, error } = await supabaseAdmin.storage
       .from(BUCKET)
-      .download(voicePath);
+      .download(pathInBucket);
 
    if (error || !data) {
       console.error("download error:", error);
