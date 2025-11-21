@@ -88,7 +88,7 @@ export const voiceToText = async (
    }
 
    const json = (await resp.json()) as GroqTranscriptionResponse;
-   const transcript = json.text ?? "";
+   const transcript = (json.text ?? "").trim();
 
    console.info("voice_to_text transcript:", transcript);
 
