@@ -1,8 +1,36 @@
 import { groqClient } from "../../config/groq.ts";
 import { supabaseAdmin } from "../../config/supabaseClient.ts";
-import { AiRequest, Message, SavedMessage } from "../../types/ai.ts";
+import { AiRequest, Message, Role, SavedMessage } from "../../types/ai.ts";
 
 const supabase = supabaseAdmin;
+type ChatCompletionMessageParam = {
+   role: Role;
+   content: string;
+};
+
+const chatHistory = async (
+   chatId: number,
+): Promise<ChatCompletionMessageParam[]> => {
+   const resp = await supabase
+      .from("chat_messages")
+      .select("author, content")
+      .eq("chat_id", chatId)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+   if (resp.error) {
+      console.error("getHistory error:", resp.error);
+      return [];
+   }
+
+   const completionMessages = ((resp.data ?? []).slice().reverse())
+      .map((msg) => ({
+         role: msg.author as Role,
+         content: (msg.content?.text ?? "").trim(),
+      }))
+      .filter((m) => m.content.length > 0);
+   return completionMessages;
+};
 
 const saveMessage = async (message: Message): Promise<SavedMessage> => {
    console.log("Saving message:", message);
@@ -29,13 +57,17 @@ const saveMessage = async (message: Message): Promise<SavedMessage> => {
 
 export const aiServiceV1 = async (request: AiRequest): Promise<Response> => {
    console.log("AI Service V1 Request:", request);
+   const history: ChatCompletionMessageParam[] = await chatHistory(
+      request.message.chat_id,
+   );
    const userMessage: SavedMessage = await saveMessage(request.message);
    const llmResponse = await groqClient.chat.completions.create({
       model: request.model,
       messages: [
+         ...history,
          {
             role: "user",
-            content: userMessage.content.text ?? "User said nothing.",
+            content: userMessage.content.text,
          },
       ],
       temperature: request.chat_settings.ai_options.temperature,

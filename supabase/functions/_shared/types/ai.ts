@@ -18,7 +18,7 @@ export type ChatSettings = {
 };
 
 export type MessageContent = {
-   text?: string;
+   text: string;
    src?: string;
 };
 
