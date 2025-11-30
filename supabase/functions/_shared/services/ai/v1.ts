@@ -11,9 +11,45 @@ type ChatCompletionMessageParam = {
 };
 
 type VectorMatchRow = { content: string };
+type VoiceToTextEdgeResult = { transcript: string };
 
 const DEFAULT_RAG_PROMPT =
    "{query}\n\nContext information is below, surrounded by ---------------------\n\n---------------------\n{question_answer_context}\n---------------------\n\nGiven the context and provided history information and not prior knowledge,\nreply to the user comment. If the answer is not in the context, inform\nthe user that you can't answer the question.\n";
+
+const voiceToText = async (voicePath: string): Promise<string> => {
+   const { data, error } = await supabase.functions.invoke<
+      VoiceToTextEdgeResult
+   >(
+      "voice_to_text",
+      { body: { voicePath } },
+   );
+   if (error) throw error;
+   return (data?.transcript ?? "").trim();
+};
+
+const prepareIncomingMessage = async (
+   incoming: Message,
+): Promise<{ saved: SavedMessage; textForLlm: string }> => {
+   switch (incoming.message_type) {
+      case "voice": {
+         const voicePath = incoming.content.src ?? "";
+         const transcript = await voiceToText(voicePath);
+
+         const saved = await saveMessage({
+            ...incoming,
+            content: { text: transcript, src: voicePath },
+         });
+
+         return { saved, textForLlm: transcript };
+      }
+
+      case "text":
+      default: {
+         const saved = await saveMessage(incoming);
+         return { saved, textForLlm: (saved.content.text ?? "").trim() };
+      }
+   }
+};
 
 const similaritySearch = async (
    chatId: number,
@@ -95,16 +131,11 @@ const saveMessage = async (message: Message): Promise<SavedMessage> => {
 export const aiServiceV1 = async (request: AiRequest): Promise<Response> => {
    const history = await chatHistory(request.message.chat_id);
 
-   const userMessage = await saveMessage(request.message);
-   const userText = (userMessage.content.text ?? "").trim();
+   const prepared = await prepareIncomingMessage(request.message);
+   const userText = prepared.textForLlm;
 
-   const isRagEnabled = request.chat_settings.is_rag_enabled;
-   const ragMsg = isRagEnabled
-      ? await buildRagContextMessage(
-         request.message.chat_id,
-         userText,
-         request.chat_settings.is_rag_enabled === true,
-      )
+   const ragMsg = request.chat_settings.is_rag_enabled === true
+      ? await buildRagContextMessage(request.message.chat_id, userText, true)
       : null;
 
    const llmResponse = await groqClient.chat.completions.create({
