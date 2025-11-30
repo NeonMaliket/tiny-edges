@@ -6,7 +6,14 @@ const supabase = supabaseAdmin;
 
 const saveMessage = async (message: Message): Promise<SavedMessage> => {
    console.log("Saving message:", message);
-   const { data, error } = await supabase.from("chat_messages").insert(message)
+   const { data, error } = await supabase.from("chat_messages").insert(
+      {
+         content: message.content,
+         message_type: message.message_type,
+         author: message.author,
+         chat_id: message.chat_id,
+      },
+   )
       .select().single();
 
    if (error) console.error("User insert error:", error);
@@ -22,7 +29,7 @@ const saveMessage = async (message: Message): Promise<SavedMessage> => {
 
 export const aiServiceV1 = async (request: AiRequest): Promise<Response> => {
    console.log("AI Service V1 Request:", request);
-   const userMessage: Message = await saveMessage(request.message);
+   const userMessage: SavedMessage = await saveMessage(request.message);
    const llmResponse = await groqClient.chat.completions.create({
       model: request.model,
       messages: [
