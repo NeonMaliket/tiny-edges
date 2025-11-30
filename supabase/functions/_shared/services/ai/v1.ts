@@ -1,23 +1,18 @@
 import { groqClient } from "../../config/groq.ts";
 import { supabaseAdmin } from "../../config/supabaseClient.ts";
-import { AiRequest, Message } from "../../types/ai.ts";
+import { AiRequest, Message, SavedMessage } from "../../types/ai.ts";
 
 const supabase = supabaseAdmin;
 
-const saveMessage = async (message: Message): Promise<Message> => {
-   const { data, error } = await supabase
-      .from("chat_messages")
-      .insert(message)
-      .select()
-      .single();
+const saveMessage = async (message: Message): Promise<SavedMessage> => {
+   const { data, error } = await supabase.from("chat_messages").insert(message)
+      .select().single();
 
-   if (error) {
-      console.error("Insert chat_message error:", error);
-      throw error;
-   }
-   if (!data) throw new Error("Insert returned no data");
+   if (error) console.error("User insert error:", error);
 
-   return data as Message;
+   console.log("Inserted message:", data);
+
+   return data;
 };
 
 export const aiServiceV1 = async (request: AiRequest): Promise<Response> => {
@@ -44,7 +39,7 @@ export const aiServiceV1 = async (request: AiRequest): Promise<Response> => {
       author: "assistant",
       chat_id: request.message.chat_id,
    };
-   const savedReply: Message = await saveMessage(message);
+   const savedReply: SavedMessage = await saveMessage(message);
    return new Response(
       JSON.stringify({ reply: savedReply }),
       { status: 200, headers: { "Content-Type": "application/json" } },

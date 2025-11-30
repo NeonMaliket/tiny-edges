@@ -1,5 +1,7 @@
 import { ApiVersion } from "./request.ts";
-
+export type NumId = {
+   id: number;
+};
 export type Role = "user" | "assistant" | "system";
 export type MessageType = "text" | "voice";
 export type AiOptions = {
@@ -20,8 +22,9 @@ export type MessageContent = {
    src?: string;
 };
 
+export type SavedMessage = Message & NumId;
+
 export type Message = {
-   id?: number;
    created_at?: Date;
    content: MessageContent;
    message_type: MessageType;
