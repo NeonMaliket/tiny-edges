@@ -12,10 +12,15 @@ const saveMessage = async (message: Message): Promise<SavedMessage> => {
 
    console.log("Inserted message:", data);
 
+   if (!data) {
+      throw new Error("Failed to save message.");
+   }
+
    return data;
 };
 
 export const aiServiceV1 = async (request: AiRequest): Promise<Response> => {
+   console.log("AI Service V1 Request:", request);
    const userMessage: Message = await saveMessage(request.message);
    const llmResponse = await groqClient.chat.completions.create({
       model: request.model,
