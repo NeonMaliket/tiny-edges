@@ -15,7 +15,7 @@ export const aiServiceV1 = async (request: AiRequest): Promise<Response> => {
       max_tokens: request.chat_settings.ai_options.max_tokens,
    });
    return new Response(
-      JSON.stringify({ reply: llmResponse.choices[0].message }),
+      JSON.stringify({ reply: llmResponse }),
       { status: 200, headers: { "Content-Type": "application/json" } },
    );
 };
