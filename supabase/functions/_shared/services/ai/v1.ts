@@ -5,6 +5,7 @@ import { AiRequest, Message, SavedMessage } from "../../types/ai.ts";
 const supabase = supabaseAdmin;
 
 const saveMessage = async (message: Message): Promise<SavedMessage> => {
+   console.log("Saving message:", message);
    const { data, error } = await supabase.from("chat_messages").insert(message)
       .select().single();
 
