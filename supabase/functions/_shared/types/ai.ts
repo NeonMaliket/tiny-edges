@@ -21,7 +21,7 @@ export type MessageContent = {
 };
 
 export type Message = {
-   id: number;
+   id?: number;
    created_at: Date;
    content: MessageContent;
    message_type: MessageType;
