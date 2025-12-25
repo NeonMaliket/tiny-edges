@@ -16,14 +16,22 @@ type VoiceToTextEdgeResult = { transcript: string };
 const DEFAULT_RAG_PROMPT =
    "{query}\n\nContext information is below, surrounded by ---------------------\n\n---------------------\n{question_answer_context}\n---------------------\n\nGiven the context and provided history information and not prior knowledge,\nreply to the user comment. If the answer is not in the context, inform\nthe user that you can't answer the question.\n";
 
-const voiceToText = async (voicePath: string): Promise<string> => {
+const voiceToText = async (
+   voicePath: string,
+   userToken: string,
+): Promise<string> => {
    console.log("[voiceToText] invoke voice_to_text:", { voicePath });
 
    const { data, error } = await supabase.functions.invoke<
       VoiceToTextEdgeResult
    >(
       "voice_to_text",
-      { body: { voicePath } },
+      {
+         body: { voicePath },
+         headers: {
+            Authorization: `Bearer ${userToken}`,
+         },
+      },
    );
 
    if (error) {
@@ -64,6 +72,7 @@ const saveMessage = async (message: Message): Promise<SavedMessage> => {
 
 const prepareIncomingMessage = async (
    incoming: Message,
+   userToken: string,
 ): Promise<{ saved: SavedMessage; textForLlm: string }> => {
    console.log("[prepareIncomingMessage] start:", {
       chat_id: incoming.chat_id,
@@ -77,7 +86,7 @@ const prepareIncomingMessage = async (
          const voicePath = incoming.content.src ?? "";
          console.log("[prepareIncomingMessage] voice path:", { voicePath });
 
-         const transcript = await voiceToText(voicePath);
+         const transcript = await voiceToText(voicePath, userToken);
          console.log(
             "[prepareIncomingMessage] voice transcript length:",
             transcript.length,
@@ -197,7 +206,10 @@ const chatHistory = async (
    return history;
 };
 
-export const aiServiceV1 = async (request: AiRequest): Promise<Response> => {
+export const aiServiceV1 = async (
+   request: AiRequest,
+   user: { id: string; token: string },
+): Promise<Response> => {
    console.log("[aiServiceV1] start:", {
       chatId: request.message.chat_id,
       model: request.model,
@@ -207,7 +219,10 @@ export const aiServiceV1 = async (request: AiRequest): Promise<Response> => {
 
    const history = await chatHistory(request.message.chat_id);
 
-   const prepared = await prepareIncomingMessage(request.message);
+   const prepared = await prepareIncomingMessage(
+      request.message,
+      user.token,
+   );
    const userText = prepared.textForLlm;
 
    console.log("[aiServiceV1] userText:", { len: userText.length });

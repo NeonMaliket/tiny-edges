@@ -4,7 +4,7 @@ import { AiRequest } from "../_shared/types/ai.ts";
 import { requireAuth } from "../_shared/auth.ts";
 
 Deno.serve(
-   requireAuth<AiRequest>((_req, body, _user) => {
-      return handleAiRequest(body);
+   requireAuth<AiRequest>((_req, body, user) => {
+      return handleAiRequest(body, user);
    }),
 );

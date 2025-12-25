@@ -1,11 +1,16 @@
 import { AiRequest } from "../../types/ai.ts";
 import { ApiVersion } from "../../types/request.ts";
 import { aiServiceV1 } from "./v1.ts";
+import { AuthenticatedUser } from "../../auth.ts";
 
-type Handler = (request: AiRequest) => Promise<Response>;
+type Handler = (
+   request: AiRequest,
+   user: AuthenticatedUser,
+) => Promise<Response>;
 
 export const handleAiRequest = async (
    request: AiRequest,
+   user: AuthenticatedUser,
 ): Promise<Response> => {
    const strategy: Partial<Record<ApiVersion, Handler>> = {
       v1: aiServiceV1,
@@ -20,7 +25,7 @@ export const handleAiRequest = async (
    }
 
    try {
-      return await service(request);
+      return await service(request, user);
    } catch (error) {
       console.error("Error handling AI request:", error);
       return new Response(
