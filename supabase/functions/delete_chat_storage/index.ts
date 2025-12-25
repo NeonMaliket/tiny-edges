@@ -1,42 +1,46 @@
-// supabase/functions/delete_chat_storage/index.ts
-
-// deno-lint-ignore no-unversioned-import
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createJsonHandler } from "../_shared/http.ts";
+import "@supabase/functions-js/edge-runtime.d.ts";
+import { requireAuth } from "../_shared/auth.ts";
 import {
-   deleteChatStorage,
-   DeleteChatStorageParams,
+  deleteChatStorage,
+  DeleteChatStorageParams,
 } from "../_shared/services/storageService.ts";
 import { AppError } from "../_shared/errors.ts";
 
 interface DeleteChatStoragePayload {
-   old_record?: {
-      user_id?: string;
-      id?: string;
-   };
+  old_record?: {
+    user_id?: string;
+    id?: string;
+  };
 }
 
 Deno.serve(
-   createJsonHandler<DeleteChatStoragePayload>(async (_req, body) => {
-      console.log("PAYLOAD:", body);
+  requireAuth<DeleteChatStoragePayload>(async (_req, body, user) => {
+    console.log("PAYLOAD:", body);
 
-      const old = body.old_record;
-      console.log("OLD_RECORD:", old);
+    const old = body.old_record;
+    console.log("OLD_RECORD:", old);
 
-      const userId = old?.user_id;
-      const chatId = old?.id;
+    const userId = old?.user_id;
+    const chatId = old?.id;
 
-      if (!userId || !chatId) {
-         console.error("MISSING FIELDS:", {
-            user_id: userId,
-            chat_id: chatId,
-         });
-         throw new AppError("Missing user_id or chat_id in old_record", 400);
-      }
+    if (!userId || !chatId) {
+      console.error("MISSING FIELDS:", {
+        user_id: userId,
+        chat_id: chatId,
+      });
+      throw new AppError("Missing user_id or chat_id in old_record", 400);
+    }
 
-      const params: DeleteChatStorageParams = { userId, chatId };
-      await deleteChatStorage(params);
+    if (userId !== user.id) {
+      throw new AppError(
+        "Unauthorized: Cannot delete storage for other users",
+        403,
+      );
+    }
 
-      return { status: "ok" };
-   }),
+    const params: DeleteChatStorageParams = { userId, chatId };
+    await deleteChatStorage(params);
+
+    return { status: "ok" };
+  }),
 );

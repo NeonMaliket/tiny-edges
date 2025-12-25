@@ -1,24 +1,21 @@
-// supabase/functions/voice_to_text/index.ts
-
-// deno-lint-ignore no-unversioned-import
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import "@supabase/functions-js/edge-runtime.d.ts";
 import {
-   voiceToText,
-   VoiceToTextInput,
+  voiceToText,
+  VoiceToTextInput,
 } from "../_shared/services/voiceToTextService.ts";
-import { createJsonHandler } from "../_shared/http.ts";
+import { requireAuth } from "../_shared/auth.ts";
 
 console.info("voice_to_text server started");
 
 Deno.serve(
-   createJsonHandler<VoiceToTextInput>(async (_req, body) => {
-      const result = await voiceToText(body);
+  requireAuth<VoiceToTextInput>(async (_req, body, _user) => {
+    const result = await voiceToText(body);
 
-      return new Response(JSON.stringify(result), {
-         headers: {
-            "Content-Type": "application/json",
-            Connection: "keep-alive",
-         },
-      });
-   }),
+    return new Response(JSON.stringify(result), {
+      headers: {
+        "Content-Type": "application/json",
+        Connection: "keep-alive",
+      },
+    });
+  }),
 );
