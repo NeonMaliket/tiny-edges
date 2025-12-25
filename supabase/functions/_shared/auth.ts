@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "jsr:@supabase/supabase-js@2.89.0";
 import { AppError } from "./errors.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
